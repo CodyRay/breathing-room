@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+}
+
+/*
+ * The app is dark by design — it is meant to be looked at with the lights low,
+ * and the phase colours are tuned against a near-black ground.
+ */
+html {
+  color-scheme: dark;
+  background: #020617;
+}
+
+body {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* A drifting glow behind everything, so the page isn't a flat black slab. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(60% 45% at 50% 32%, rgba(45, 212, 191, 0.09), transparent 70%),
+    radial-gradient(70% 50% at 50% 100%, rgba(99, 102, 241, 0.08), transparent 70%);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

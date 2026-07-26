@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-112 -112 224 224">
+  <!--
+    The 5-5 breathing loop, straight out of the same generator the app draws
+    with: two equal phases, so two equal arcs meeting at a vertex on either
+    side. Teal over the top is the inhale, amber underneath the exhale.
+
+    The app marks each vertex with a dot; this doesn't. At 16px the dots turn
+    into white specks that swallow the shape, and they are redundant here —
+    the point where the two colours meet is the phase boundary.
+  -->
+  <rect x="-112" y="-112" width="224" height="224" rx="50" fill="#020617" />
+  <path
+    d="M -100 0 A 107.11 107.11 0 0 1 100 0"
+    fill="none"
+    stroke="#5eead4"
+    stroke-width="21"
+    stroke-linecap="round"
+  />
+  <path
+    d="M 100 0 A 107.11 107.11 0 0 1 -100 0"
+    fill="none"
+    stroke="#fbbf6f"
+    stroke-width="21"
+    stroke-linecap="round"
+  />
+</svg>

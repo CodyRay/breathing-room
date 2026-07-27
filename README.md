@@ -11,6 +11,27 @@ npm start       # serve the production build
 npm run lint
 ```
 
+## Installing it
+
+It is a PWA. `src/app/manifest.ts` supplies the manifest, `public/sw.js` the
+service worker, and Settings carries an **Add to home screen** control instead
+of letting the browser raise its own banner.
+
+Two things are less obvious than they look:
+
+- `beforeinstallprompt` fires *while the page is loading*, often before React
+  hydrates. A listener registered in an effect misses it and the install option
+  silently never appears. It is captured by an inline script in the root layout
+  and read back through `useSyncExternalStore`.
+- iOS Safari never fires it and offers no API at all — adding to the home
+  screen there is strictly a manual Share-sheet action, so the panel detects
+  iOS and gives instructions rather than a dead button.
+
+The worker keeps the app usable with no connection, which suits it: once
+loaded, a session needs no network whatsoever. Navigations go network-first so
+a deploy is never served stale, content-hashed `/_next/static/` is cache-first,
+and everything else is stale-while-revalidate.
+
 ## Deploying
 
 Everything is prerendered — there is no server logic, no API route, no

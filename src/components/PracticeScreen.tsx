@@ -4,12 +4,14 @@ import Link from "next/link";
 import { useState } from "react";
 import { SessionPanel } from "@/components/SessionPanel";
 import { Sheet } from "@/components/Sheet";
+import { useInstall } from "@/hooks/useInstall";
 import { useSettings } from "@/hooks/useSettings";
 import { SOUND_PACKS, type SoundPack, type SoundPackId } from "@/lib/audio";
 
 export function PracticeScreen({ voicePacks }: { voicePacks: SoundPack[] }) {
   const { pattern, pack, volume, keepAwake, set } = useSettings();
   const [panel, setPanel] = useState<"info" | "settings" | null>(null);
+  const install = useInstall();
 
   const packs = [...SOUND_PACKS, ...voicePacks];
   // A stored pack whose clips have since gone would leave the picker blank and
@@ -192,6 +194,40 @@ export function PracticeScreen({ voicePacks }: { voicePacks: SoundPack[] }) {
               className="mt-1 h-5 w-5 shrink-0 accent-teal-300"
             />
           </label>
+
+          {install.state !== "unavailable" && (
+            <div className="border-t border-white/10 pt-5">
+              <div className="mb-2 text-sm text-slate-200">Add to home screen</div>
+              {install.state === "ready" && (
+                <>
+                  <p className="mb-3 text-sm text-slate-500">
+                    Install it and it opens full screen, with no browser bar —
+                    and works with no connection at all.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void install.install()}
+                    className="w-full rounded-xl border border-teal-300/30 bg-teal-300/10 px-4 py-2.5 text-sm text-teal-200 transition hover:bg-teal-300/20"
+                  >
+                    Install Breathing Room
+                  </button>
+                </>
+              )}
+              {install.state === "manual" && (
+                <p className="text-sm text-slate-500">
+                  Tap the <span className="text-slate-300">Share</span> button
+                  below, then{" "}
+                  <span className="text-slate-300">Add to Home Screen</span>.
+                  Safari has no way for an app to open that for you.
+                </p>
+              )}
+              {install.state === "installed" && (
+                <p className="text-sm text-slate-500">
+                  Installed — you&rsquo;re running it from the home screen.
+                </p>
+              )}
+            </div>
+          )}
 
           <p className="border-t border-white/10 pt-4 text-xs text-slate-500">
             {packs.find((p) => p.id === current)?.blurb}

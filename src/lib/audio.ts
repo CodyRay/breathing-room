@@ -257,11 +257,18 @@ const CHORD_WEIGHTS = [0.5, 0.32, 0.24, 0.2];
  * (inhale ends where hold begins, and so on), so loudness is continuous around
  * the cycle and only the chord marks the change.
  */
+/**
+ * The swell is deliberately gentle. An earlier version ran 0.04 to 0.34 — an
+ * 8:1 range, near 19dB — which made the quiet end almost absent and the whole
+ * thing feel like it was lunging at you rather than breathing. This is a hair
+ * over 2:1, about 7dB: unmistakable as a direction, never startling. The top
+ * is unchanged; it is the floor that came up.
+ */
 const CRESCENDO_LEVELS: Record<PhaseKind, [number, number]> = {
-  inhale: [0.04, 0.34],
+  inhale: [0.15, 0.34],
   hold: [0.34, 0.34],
-  exhale: [0.34, 0.04],
-  "hold-out": [0.04, 0.04],
+  exhale: [0.34, 0.15],
+  "hold-out": [0.15, 0.15],
 };
 
 /**
@@ -275,18 +282,25 @@ const CRESCENDO_LEVELS: Record<PhaseKind, [number, number]> = {
  * same as Crescendo.
  */
 const OCEAN_LEVELS: Record<PhaseKind, [number, number]> = {
-  inhale: [0.05, 0.42],
-  hold: [0.42, 0.42],
-  exhale: [0.42, 0.05],
-  "hold-out": [0.05, 0.05],
+  inhale: [0.24, 0.44],
+  hold: [0.44, 0.44],
+  exhale: [0.44, 0.24],
+  "hold-out": [0.24, 0.24],
 };
 
-/** Low-pass cutoff in Hz, tracking the same contour as the level. */
+/**
+ * Low-pass cutoff in Hz, tracking the same contour as the level.
+ *
+ * Kept to a narrower range than it started with (340–2400) for the same reason
+ * the levels were tempered: brightness reads as loudness, so a wide filter
+ * sweep on top of a wide level sweep compounds into something that surges. The
+ * bottom no longer goes muffled, so the surf never disappears between breaths.
+ */
 const OCEAN_CUTOFF: Record<PhaseKind, [number, number]> = {
-  inhale: [340, 2400],
-  hold: [2400, 2400],
-  exhale: [2400, 340],
-  "hold-out": [340, 340],
+  inhale: [1150, 2300],
+  hold: [2300, 2300],
+  exhale: [2300, 1150],
+  "hold-out": [1150, 1150],
 };
 
 /**

@@ -6,7 +6,6 @@ export type SoundPackId =
   | "trek"
   | "crescendo"
   | "ocean"
-  | "glide"
   | "voice-female"
   | "voice-male";
 
@@ -42,11 +41,6 @@ export const SOUND_PACKS: SoundPack[] = [
     id: "ocean",
     name: "Ocean",
     blurb: "Surf that rolls in as you breathe in and draws back as you go out.",
-  },
-  {
-    id: "glide",
-    name: "Glide",
-    blurb: "One tone that climbs on the inhale and falls on the exhale.",
   },
 ];
 
@@ -303,25 +297,6 @@ const OCEAN_CUTOFF: Record<PhaseKind, [number, number]> = {
   "hold-out": [1150, 1150],
 };
 
-/**
- * Glide carries the breath in pitch instead of loudness, which leaves loudness
- * free to stay put. A fifth is enough to be unmistakable without ever sounding
- * like a siren. Endpoints meet at the boundaries, so a cycle is one unbroken
- * line rather than four separate notes.
- */
-const GLIDE_PITCH: Record<PhaseKind, [number, number]> = {
-  inhale: [220, 330],
-  hold: [330, 330],
-  exhale: [330, 220],
-  "hold-out": [220, 220],
-};
-
-/** Harmonics for the Glide tone. Integer multiples, so they glide as one. */
-const GLIDE_HARMONICS: [number, number][] = [
-  [1, 1],
-  [2, 0.2],
-  [3, 0.07],
-];
 
 export interface BeatEvent {
   /** Seconds from the start of the cycle. */
@@ -520,9 +495,6 @@ export class BreathAudio {
       case "ocean":
         if (event.beat === 0) this.ocean(when, event);
         return;
-      case "glide":
-        if (event.beat === 0) this.glide(when, event);
-        return;
       case "voice-female":
       case "voice-male":
         if (event.beat === 0) this.speak(when, pack, event.kind);
@@ -563,44 +535,6 @@ export class BreathAudio {
     wet.gain.value = 0.35;
     out.connect(wet).connect(this.reverbSend!);
     this.start(source, when, when + held + 0.1);
-  }
-
-  /**
-   * One tone whose pitch carries the breath, leaving loudness constant. The
-   * ramp is exponential because pitch is heard logarithmically — a linear
-   * sweep would rush the bottom and crawl at the top.
-   */
-  private glide(when: number, event: BeatEvent) {
-    const ctx = this.ctx!;
-    const held = event.seconds;
-    const [fromPitch, toPitch] = GLIDE_PITCH[event.kind];
-
-    const out = ctx.createGain();
-    out.gain.setValueAtTime(0.0001, when);
-    out.gain.linearRampToValueAtTime(0.22, when + 0.05);
-    out.gain.setValueAtTime(0.22, when + held);
-    out.gain.linearRampToValueAtTime(0.0001, when + held + 0.05);
-    out.connect(this.fade!);
-
-    const wet = ctx.createGain();
-    wet.gain.value = 0.4;
-    out.connect(wet).connect(this.reverbSend!);
-
-    for (const [harmonic, level] of GLIDE_HARMONICS) {
-      const osc = ctx.createOscillator();
-      const g = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(fromPitch * harmonic, when);
-      if (toPitch !== fromPitch) {
-        osc.frequency.exponentialRampToValueAtTime(
-          toPitch * harmonic,
-          when + held,
-        );
-      }
-      g.gain.value = level;
-      osc.connect(g).connect(out);
-      this.start(osc, when, when + held + 0.1);
-    }
   }
 
   /** A recorded cue. Silent if the clip never loaded. */

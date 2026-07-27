@@ -144,11 +144,8 @@ export function PracticeScreen({ voicePacks }: { voicePacks: SoundPack[] }) {
           <p className="text-slate-400">
             <span className="text-slate-200">Ocean</span> is surf on the same
             contour: it rolls in and brightens as you breathe in, and draws
-            back as you go out. <span className="text-slate-200">Glide</span>{" "}
-            carries the breath in pitch instead — one tone climbing a fifth and
-            falling back — so the volume can stay put. The{" "}
-            <span className="text-slate-200">Voice</span> packs simply say it:
-            in, hold, out.
+            back as you go out. The <span className="text-slate-200">Voice</span>{" "}
+            packs simply say it: in, hold, out.
           </p>
           <p className="text-slate-500">
             Space starts and stops. Stopping rewinds to the top of the cycle.

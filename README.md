@@ -119,11 +119,6 @@ exactly. No sample files.
   low-pass where loudness and brightness swell and subside together, so the
   breath is legible on two axes at once. Being noise, it has no partials, which
   makes it the one pack that cannot be made to sound synthetic by mistuning.
-- **Glide** — carries the breath in *pitch* rather than loudness, climbing a
-  fifth on the inhale and falling back on the exhale, which leaves loudness
-  free to stay constant. The ramp is exponential because pitch is heard
-  logarithmically. Harmonics are integer multiples so the whole tone glides as
-  one, and phase endpoints meet exactly, making a cycle one unbroken line.
 - **Voice (female / male)** — a spoken cue at each change of phase.
 
 ### The voice clips

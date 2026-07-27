@@ -1,8 +1,23 @@
 import type { PhaseKind } from "./patterns";
 
-export type SoundPackId = "bells" | "midi" | "trek" | "crescendo";
+export type SoundPackId =
+  | "bells"
+  | "midi"
+  | "trek"
+  | "crescendo"
+  | "ocean"
+  | "glide"
+  | "voice-female"
+  | "voice-male";
 
-export const SOUND_PACKS: { id: SoundPackId; name: string; blurb: string }[] = [
+export interface SoundPack {
+  id: SoundPackId;
+  name: string;
+  blurb: string;
+}
+
+/** Packs synthesised on the fly. Always available, nothing to load. */
+export const SOUND_PACKS: SoundPack[] = [
   {
     id: "bells",
     name: "Bells",
@@ -23,7 +38,57 @@ export const SOUND_PACKS: { id: SoundPackId; name: string; blurb: string }[] = [
     name: "Crescendo",
     blurb: "A drone that swells as you breathe in and fades as you breathe out.",
   },
+  {
+    id: "ocean",
+    name: "Ocean",
+    blurb: "Surf that rolls in as you breathe in and draws back as you go out.",
+  },
+  {
+    id: "glide",
+    name: "Glide",
+    blurb: "One tone that climbs on the inhale and falls on the exhale.",
+  },
 ];
+
+/**
+ * Packs that play recorded clips rather than synthesising them. Unlike the
+ * rest of the app these need files on disk, so they are only offered when
+ * their clips are actually present — see `availableVoicePacks` in
+ * `src/lib/voices.ts`.
+ *
+ * The clips are WAV rather than MP3 on purpose. These are timing cues, and
+ * every MP3 encoder prepends a short silent pad that would drag each cue a few
+ * tens of milliseconds late. At well under a second apiece the compression
+ * would have saved nothing worth that.
+ */
+export const VOICE_PACKS: (SoundPack & { dir: string })[] = [
+  {
+    id: "voice-female",
+    name: "Voice (female)",
+    blurb: "A spoken cue at each change of phase.",
+    dir: "voice/female",
+  },
+  {
+    id: "voice-male",
+    name: "Voice (male)",
+    blurb: "A spoken cue at each change of phase.",
+    dir: "voice/male",
+  },
+];
+
+/** Clip each phase asks for. Both holds share one, so three files per voice. */
+const VOICE_CLIP: Record<PhaseKind, string> = {
+  inhale: "in",
+  hold: "hold",
+  exhale: "out",
+  "hold-out": "hold",
+};
+
+export const VOICE_CLIP_NAMES = ["in", "hold", "out"] as const;
+
+export function isVoicePack(pack: SoundPackId): boolean {
+  return VOICE_PACKS.some((v) => v.id === pack);
+}
 
 /** Root note per phase for the MIDI pack, in Hz. Inhale rises, exhale settles. */
 const PHASE_PITCH: Record<PhaseKind, number> = {
@@ -199,6 +264,51 @@ const CRESCENDO_LEVELS: Record<PhaseKind, [number, number]> = {
   "hold-out": [0.04, 0.04],
 };
 
+/**
+ * Ocean is filtered noise rather than tones, which is the point: noise has no
+ * partials, so there is nothing to beat or clash with anything else. It is the
+ * one pack that cannot be made to sound synthetic by mistuning.
+ *
+ * Loudness and brightness move together — a wave coming in gets louder *and*
+ * brighter as it breaks, and darkens as it draws back — so the breath is
+ * legible on two axes at once. Both pairs meet at the phase boundaries, the
+ * same as Crescendo.
+ */
+const OCEAN_LEVELS: Record<PhaseKind, [number, number]> = {
+  inhale: [0.05, 0.42],
+  hold: [0.42, 0.42],
+  exhale: [0.42, 0.05],
+  "hold-out": [0.05, 0.05],
+};
+
+/** Low-pass cutoff in Hz, tracking the same contour as the level. */
+const OCEAN_CUTOFF: Record<PhaseKind, [number, number]> = {
+  inhale: [340, 2400],
+  hold: [2400, 2400],
+  exhale: [2400, 340],
+  "hold-out": [340, 340],
+};
+
+/**
+ * Glide carries the breath in pitch instead of loudness, which leaves loudness
+ * free to stay put. A fifth is enough to be unmistakable without ever sounding
+ * like a siren. Endpoints meet at the boundaries, so a cycle is one unbroken
+ * line rather than four separate notes.
+ */
+const GLIDE_PITCH: Record<PhaseKind, [number, number]> = {
+  inhale: [220, 330],
+  hold: [330, 330],
+  exhale: [330, 220],
+  "hold-out": [220, 220],
+};
+
+/** Harmonics for the Glide tone. Integer multiples, so they glide as one. */
+const GLIDE_HARMONICS: [number, number][] = [
+  [1, 1],
+  [2, 0.2],
+  [3, 0.07],
+];
+
 export interface BeatEvent {
   /** Seconds from the start of the cycle. */
   at: number;
@@ -229,6 +339,10 @@ export class BreathAudio {
   private reverbSend: GainNode | null = null;
   private live = new Set<AudioScheduledSourceNode>();
   private volume = 0.7;
+  /** Looping noise for Ocean, built once. */
+  private noise: AudioBuffer | null = null;
+  /** Decoded voice clips, keyed `<pack>/<clip>`. */
+  private clips = new Map<string, AudioBuffer>();
 
   async resume(): Promise<AudioContext> {
     if (!this.ctx) {
@@ -276,6 +390,58 @@ export class BreathAudio {
         data[i] = smoothed * Math.pow(1 - i / length, decay);
       }
     }
+    return buffer;
+  }
+
+  /**
+   * Fetch and decode a voice pack's clips. Safe to call repeatedly — already
+   * decoded clips are kept. A clip that fails to load simply doesn't speak;
+   * the session still runs, which is better than refusing to start because a
+   * file is missing.
+   */
+  async prime(pack: SoundPackId): Promise<void> {
+    const voice = VOICE_PACKS.find((v) => v.id === pack);
+    if (!voice || !this.ctx) return;
+    await Promise.all(
+      VOICE_CLIP_NAMES.map(async (name) => {
+        const key = `${voice.id}/${name}`;
+        if (this.clips.has(key)) return;
+        try {
+          const response = await fetch(`/${voice.dir}/${name}.wav`);
+          if (!response.ok) return;
+          const decoded = await this.ctx!.decodeAudioData(
+            await response.arrayBuffer(),
+          );
+          this.clips.set(key, decoded);
+        } catch {
+          // missing or undecodable — that phase stays silent
+        }
+      }),
+    );
+  }
+
+  /**
+   * Pink-ish noise: white noise leaned on by a one-pole filter, which tilts
+   * the spectrum downward and is what separates surf from hiss.
+   */
+  private noiseBuffer(): AudioBuffer {
+    if (this.noise) return this.noise;
+    const ctx = this.ctx!;
+    const length = Math.floor(ctx.sampleRate * 3);
+    const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    let smoothed = 0;
+    for (let i = 0; i < length; i++) {
+      smoothed = smoothed * 0.75 + (Math.random() * 2 - 1) * 0.25;
+      data[i] = smoothed * 3.2;
+    }
+    // Match the ends so the loop point doesn't click.
+    const blend = Math.floor(ctx.sampleRate * 0.05);
+    for (let i = 0; i < blend; i++) {
+      const t = i / blend;
+      data[i] = data[i] * t + data[length - blend + i] * (1 - t);
+    }
+    this.noise = buffer;
     return buffer;
   }
 
@@ -337,7 +503,106 @@ export class BreathAudio {
       case "crescendo":
         if (event.beat === 0) this.crescendo(when, event);
         return;
+      case "ocean":
+        if (event.beat === 0) this.ocean(when, event);
+        return;
+      case "glide":
+        if (event.beat === 0) this.glide(when, event);
+        return;
+      case "voice-female":
+      case "voice-male":
+        if (event.beat === 0) this.speak(when, pack, event.kind);
+        return;
     }
+  }
+
+  /**
+   * Surf: noise through a low-pass, where loudness and brightness swell and
+   * subside together across the phase. Because it is noise there are no
+   * partials to interfere with anything, which is why this pack cannot be
+   * made to sound synthetic by mistuning.
+   */
+  private ocean(when: number, event: BeatEvent) {
+    const ctx = this.ctx!;
+    const held = event.seconds;
+    const [fromLevel, toLevel] = OCEAN_LEVELS[event.kind];
+    const [fromCut, toCut] = OCEAN_CUTOFF[event.kind];
+
+    const source = ctx.createBufferSource();
+    source.buffer = this.noiseBuffer();
+    source.loop = true;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.Q.value = 0.6;
+    filter.frequency.setValueAtTime(fromCut, when);
+    filter.frequency.exponentialRampToValueAtTime(toCut, when + held);
+
+    const out = ctx.createGain();
+    out.gain.setValueAtTime(0.0001, when);
+    out.gain.linearRampToValueAtTime(fromLevel, when + 0.04);
+    out.gain.linearRampToValueAtTime(toLevel, when + held);
+    out.gain.linearRampToValueAtTime(0.0001, when + held + 0.04);
+
+    source.connect(filter).connect(out).connect(this.fade!);
+    const wet = ctx.createGain();
+    wet.gain.value = 0.35;
+    out.connect(wet).connect(this.reverbSend!);
+    this.start(source, when, when + held + 0.1);
+  }
+
+  /**
+   * One tone whose pitch carries the breath, leaving loudness constant. The
+   * ramp is exponential because pitch is heard logarithmically — a linear
+   * sweep would rush the bottom and crawl at the top.
+   */
+  private glide(when: number, event: BeatEvent) {
+    const ctx = this.ctx!;
+    const held = event.seconds;
+    const [fromPitch, toPitch] = GLIDE_PITCH[event.kind];
+
+    const out = ctx.createGain();
+    out.gain.setValueAtTime(0.0001, when);
+    out.gain.linearRampToValueAtTime(0.22, when + 0.05);
+    out.gain.setValueAtTime(0.22, when + held);
+    out.gain.linearRampToValueAtTime(0.0001, when + held + 0.05);
+    out.connect(this.fade!);
+
+    const wet = ctx.createGain();
+    wet.gain.value = 0.4;
+    out.connect(wet).connect(this.reverbSend!);
+
+    for (const [harmonic, level] of GLIDE_HARMONICS) {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(fromPitch * harmonic, when);
+      if (toPitch !== fromPitch) {
+        osc.frequency.exponentialRampToValueAtTime(
+          toPitch * harmonic,
+          when + held,
+        );
+      }
+      g.gain.value = level;
+      osc.connect(g).connect(out);
+      this.start(osc, when, when + held + 0.1);
+    }
+  }
+
+  /** A recorded cue. Silent if the clip never loaded. */
+  private speak(when: number, pack: SoundPackId, kind: PhaseKind) {
+    const buffer = this.clips.get(`${pack}/${VOICE_CLIP[kind]}`);
+    if (!buffer) return;
+    const ctx = this.ctx!;
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    const g = ctx.createGain();
+    g.gain.value = 0.9;
+    source.connect(g).connect(this.fade!);
+    const wet = ctx.createGain();
+    wet.gain.value = 0.12;
+    g.connect(wet).connect(this.reverbSend!);
+    this.start(source, when, when + buffer.duration + 0.05);
   }
 
   /**

@@ -94,6 +94,39 @@ exactly. No sample files.
   deliberately continuous across boundaries, so loudness gives nothing away and
   the phase change is marked only by the chord moving — one fixed root with the
   top voice walking C5 → B4 → A4 → G4 down the cycle.
+- **Ocean** — the same contour rendered as surf: pink-ish noise through a
+  low-pass where loudness and brightness swell and subside together, so the
+  breath is legible on two axes at once. Being noise, it has no partials, which
+  makes it the one pack that cannot be made to sound synthetic by mistuning.
+- **Glide** — carries the breath in *pitch* rather than loudness, climbing a
+  fifth on the inhale and falling back on the exhale, which leaves loudness
+  free to stay constant. The ramp is exponential because pitch is heard
+  logarithmically. Harmonics are integer multiples so the whole tone glides as
+  one, and phase endpoints meet exactly, making a cycle one unbroken line.
+- **Voice (female / male)** — a spoken cue at each change of phase.
+
+### The voice clips
+
+These are the only recorded audio in the project, and the only thing that
+isn't synthesised at runtime. They live in `public/voice/<name>/` as
+`in.wav`, `hold.wav` and `out.wav` — three files per voice, since both holds
+share a cue.
+
+They were generated locally with [Piper](https://github.com/OHF-Voice/piper1-gpl)
+(`en_US-amy-medium` for the female voice, `en_US-joe-medium` for the male),
+then trimmed to the speech, faded 6ms at each edge and peak-normalised to
+-2.9 dBFS. Piper's `en_US-ryan-medium` was tried first and rejected: it
+compresses single words to around 0.15s regardless of the length scale, which
+is far too clipped to breathe to.
+
+WAV, not MP3, on purpose — every MP3 encoder prepends a short silent pad, and
+these are timing cues. At six clips totalling ~180KB the compression would
+have saved nothing worth a few tens of milliseconds of lag.
+
+A voice pack is only offered in the picker when its three clips are actually
+present. That check (`src/lib/voices.ts`) runs during `next build`, so it
+costs nothing at runtime and a pack can never appear without files behind it.
+Adding a third voice is dropping a folder in and rebuilding.
 
 ### Why the sustained voices are tuned the way they are
 

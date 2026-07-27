@@ -1,4 +1,4 @@
-import { SOUND_PACKS, type SoundPackId } from "./audio";
+import { SOUND_PACKS, VOICE_PACKS, type SoundPackId } from "./audio";
 import { DEFAULT_PATTERN_ID } from "./patterns";
 
 export interface Settings {
@@ -33,7 +33,11 @@ function read(): Settings {
       const stored: Settings = { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
       // A pack that has since been removed would leave the picker showing
       // nothing and the session silent, so fall back rather than trust it.
-      return SOUND_PACKS.some((p) => p.id === stored.pack)
+      // Voice packs count as known here even when their clips are absent —
+      // whether they are *offered* is decided at build time, and the picker
+      // handles the mismatch.
+      const known = [...SOUND_PACKS, ...VOICE_PACKS];
+      return known.some((p) => p.id === stored.pack)
         ? stored
         : { ...stored, pack: DEFAULT_SETTINGS.pack };
     }

@@ -5,11 +5,16 @@ import { useState } from "react";
 import { SessionPanel } from "@/components/SessionPanel";
 import { Sheet } from "@/components/Sheet";
 import { useSettings } from "@/hooks/useSettings";
-import { SOUND_PACKS, type SoundPackId } from "@/lib/audio";
+import { SOUND_PACKS, type SoundPack, type SoundPackId } from "@/lib/audio";
 
-export function PracticeScreen() {
+export function PracticeScreen({ voicePacks }: { voicePacks: SoundPack[] }) {
   const { pattern, pack, volume, keepAwake, set } = useSettings();
   const [panel, setPanel] = useState<"info" | "settings" | null>(null);
+
+  const packs = [...SOUND_PACKS, ...voicePacks];
+  // A stored pack whose clips have since gone would leave the picker blank and
+  // the session silent, so fall back to the first that exists.
+  const current = packs.some((p) => p.id === pack) ? pack : packs[0].id;
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pt-4 pb-8">
@@ -53,11 +58,11 @@ export function PracticeScreen() {
           <span className="sr-only">Audio signal</span>
           <div className="relative">
             <select
-              value={pack}
+              value={current}
               onChange={(e) => set("pack", e.target.value as SoundPackId)}
               className="w-full appearance-none rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-base text-slate-100 transition hover:border-white/25 focus:border-white/40 focus:outline-none"
             >
-              {SOUND_PACKS.map((p) => (
+              {packs.map((p) => (
                 <option key={p.id} value={p.id} className="bg-slate-900">
                   {p.name}
                 </option>
@@ -97,7 +102,7 @@ export function PracticeScreen() {
       <SessionPanel
         key={pattern.id}
         pattern={pattern}
-        pack={pack}
+        pack={current}
         volume={volume}
         keepAwake={keepAwake}
       />
@@ -133,6 +138,15 @@ export function PracticeScreen() {
             breathe in, sits level while you hold and subsides as you breathe
             out — the volume never jumps at a corner, so listen for the chord
             moving underneath instead.
+          </p>
+          <p className="text-slate-400">
+            <span className="text-slate-200">Ocean</span> is surf on the same
+            contour: it rolls in and brightens as you breathe in, and draws
+            back as you go out. <span className="text-slate-200">Glide</span>{" "}
+            carries the breath in pitch instead — one tone climbing a fifth and
+            falling back — so the volume can stay put. The{" "}
+            <span className="text-slate-200">Voice</span> packs simply say it:
+            in, hold, out.
           </p>
           <p className="text-slate-500">
             Space starts and stops. Stopping rewinds to the top of the cycle.
@@ -180,7 +194,7 @@ export function PracticeScreen() {
           </label>
 
           <p className="border-t border-white/10 pt-4 text-xs text-slate-500">
-            {SOUND_PACKS.find((p) => p.id === pack)?.blurb}
+            {packs.find((p) => p.id === current)?.blurb}
           </p>
         </div>
       </Sheet>

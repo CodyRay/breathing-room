@@ -153,13 +153,16 @@ export function useBreathSession(
       setElapsed(0);
       return;
     }
-    void audio.resume().then((ctx) => {
+    void audio.resume().then(async (ctx) => {
+      // Voice packs read clips from disk; load them before the clock starts so
+      // the first cue isn't missed while it downloads.
+      await audio.prime(pack);
       originRef.current = ctx.currentTime;
       cursorRef.current = -1e-6;
       setElapsed(0);
       setRunning(true);
     });
-  }, [audio, running]);
+  }, [audio, pack, running]);
 
   return {
     ...phaseAt(pattern, elapsed % total),

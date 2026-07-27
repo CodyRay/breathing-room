@@ -134,11 +134,12 @@ isn't synthesised at runtime. They live in `public/voice/<name>/` as
 share a cue.
 
 They were generated locally with [Piper](https://github.com/OHF-Voice/piper1-gpl)
-(`en_US-amy-medium` for the female voice, `en_US-joe-medium` for the male),
+(`en_US-amy-medium` for the female voice, `en_GB-alan-medium` for the male),
 then trimmed to the speech, faded 6ms at each edge and peak-normalised to
--2.9 dBFS. Piper's `en_US-ryan-medium` was tried first and rejected: it
-compresses single words to around 0.15s regardless of the length scale, which
-is far too clipped to breathe to.
+-2.9 dBFS. Two voices were auditioned and rejected along the way:
+`en_US-ryan-medium` compresses single words to around 0.15s regardless of the
+length scale, far too clipped to breathe to, and `en_US-norman-medium`
+synthesised "In." as 3.3 seconds of noise.
 
 WAV, not MP3, on purpose — every MP3 encoder prepends a short silent pad, and
 these are timing cues. At six clips totalling ~180KB the compression would
